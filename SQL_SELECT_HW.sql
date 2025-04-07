@@ -7,23 +7,22 @@
 
 -- 1. Animation movies (2017-2019) with rating > 1, ordered alphabetically
 SELECT f.title
-FROM film f
-INNER JOIN film_category fc ON fc.film_id = f.film_id
-INNER JOIN category c ON fc.category_id = c.category_id
+FROM public.film AS f
+INNER JOIN public.film_category AS fc ON fc.film_id = f.film_id
+INNER JOIN public.category AS c ON fc.category_id = c.category_id
 WHERE f.release_year BETWEEN 2017 AND 2019
   AND UPPER(c.name) = 'ANIMATION'
   AND f.rental_rate > 1
-GROUP BY f.title
 ORDER BY f.title;
 
 -- 2. Revenue earned by each rental store after March 2017
 SELECT CONCAT(a.address, ' ', COALESCE(a.address2, '')) AS store_address,
        SUM(p.amount) AS total_revenue 
-FROM inventory i
-INNER JOIN rental r ON i.inventory_id = r.inventory_id 
-INNER JOIN payment p ON r.rental_id = p.rental_id 
-INNER JOIN store s ON s.store_id = i.store_id
-INNER JOIN address a ON s.address_id = a.address_id
+FROM public.inventory i
+INNER JOIN public.rental r ON i.inventory_id = r.inventory_id 
+INNER JOIN public.payment p ON r.rental_id = p.rental_id 
+INNER JOIN public.store s ON s.store_id = i.store_id
+INNER JOIN public.address a ON s.address_id = a.address_id
 WHERE p.payment_date > '2017-03-31' 
 GROUP BY a.address, a.address2
 ORDER BY total_revenue DESC;
@@ -31,9 +30,9 @@ ORDER BY total_revenue DESC;
 
 -- 3. Top-5 actors by number of movies (after 2015)
 SELECT a.first_name, a.last_name, COUNT(f.film_id) AS number_of_movies
-FROM actor a
-INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
-INNER JOIN film f ON fa.film_id = f.film_id
+FROM public.actor a
+INNER JOIN public.film_actor fa ON a.actor_id = fa.actor_id
+INNER JOIN public.film f ON fa.film_id = f.film_id
 WHERE f.release_year > 2015
 GROUP BY a.first_name, a.last_name
 ORDER BY number_of_movies DESC
@@ -44,9 +43,9 @@ SELECT f.release_year,
        COUNT(CASE WHEN UPPER(c.name) = 'DRAMA' THEN 1 END) AS number_of_drama_movies,
        COUNT(CASE WHEN UPPER(c.name) = 'TRAVEL' THEN 1 END) AS number_of_travel_movies,
        COUNT(CASE WHEN UPPER(c.name) = 'DOCUMENTARY' THEN 1 END) AS number_of_documentary_movies
-FROM film f
-INNER JOIN film_category fc ON f.film_id = fc.film_id
-INNER JOIN category c ON fc.category_id = c.category_id
+FROM public.film f
+INNER JOIN public.film_category fc ON f.film_id = fc.film_id
+INNER JOIN public.category c ON fc.category_id = c.category_id
 WHERE UPPER(c.name) IN ('DRAMA', 'TRAVEL', 'DOCUMENTARY')
 GROUP BY f.release_year
 ORDER BY f.release_year DESC;
@@ -61,10 +60,10 @@ WITH employee_revenue AS (
         a.address AS store_address,
         SUM(p.amount) AS total_revenue,
         MAX(DATE(p.payment_date)) AS last_rental_date
-    FROM staff s
-    INNER JOIN store st ON s.store_id = st.store_id
-    INNER JOIN payment p ON s.staff_id = p.staff_id
-    INNER JOIN address a ON st.address_id = a.address_id
+    FROM public.staff s
+    INNER JOIN public.store st ON s.store_id = st.store_id
+    INNER JOIN public.payment p ON s.staff_id = p.staff_id
+    INNER JOIN public.address a ON st.address_id = a.address_id
     WHERE p.payment_date BETWEEN '2017-01-01' AND '2017-12-31'
     GROUP BY s.staff_id, s.first_name, s.last_name, st.store_id, a.address
 )
@@ -77,6 +76,7 @@ FROM employee_revenue er
 ORDER BY er.total_revenue DESC
 LIMIT 3;
 
+
 -- Query 2: Which 5 movies were rented the most, and what's the expected age of the audience for these movies?
 WITH movie_rentals AS (
     SELECT
@@ -84,9 +84,9 @@ WITH movie_rentals AS (
         f.title,
         f.rating,
         COUNT(r.rental_id) AS rental_count
-    FROM rental r
-    INNER JOIN inventory i ON r.inventory_id = i.inventory_id
-    INNER JOIN film f ON i.film_id = f.film_id
+    FROM public.rental r
+    INNER JOIN public.inventory i ON r.inventory_id = i.inventory_id
+    INNER JOIN public.film f ON i.film_id = f.film_id
     GROUP BY f.film_id, f.title, f.rating
 )
 SELECT
@@ -111,9 +111,9 @@ SELECT
     a.last_name,
     MAX(f.release_year) AS latest_release_year,
     EXTRACT(YEAR FROM CURRENT_DATE) - MAX(f.release_year) AS gap_from_current_year
-FROM actor a
-INNER JOIN film_actor fa ON a.actor_id = fa.actor_id
-INNER JOIN film f ON fa.film_id = f.film_id
+FROM public.actor a
+INNER JOIN public.film_actor fa ON a.actor_id = fa.actor_id
+INNER JOIN public.film f ON fa.film_id = f.film_id
 GROUP BY a.actor_id, a.first_name, a.last_name
 ORDER BY gap_from_current_year DESC;
 
@@ -126,15 +126,15 @@ SELECT
     f2.title AS movie_title_2,
     f2.release_year AS release_year_2,
     (f2.release_year - f1.release_year) AS gap_between_movies
-FROM actor a1
-JOIN film_actor fa1 ON a1.actor_id = fa1.actor_id
-JOIN film f1 ON fa1.film_id = f1.film_id
-JOIN film_actor fa2 ON a1.actor_id = fa2.actor_id
-JOIN film f2 ON fa2.film_id = f2.film_id
+FROM public.actor a1
+JOIN public.film_actor fa1 ON a1.actor_id = fa1.actor_id
+JOIN public.film f1 ON fa1.film_id = f1.film_id
+JOIN public.film_actor fa2 ON a1.actor_id = fa2.actor_id
+JOIN public.film f2 ON fa2.film_id = f2.film_id
 WHERE f2.release_year = (
     SELECT MIN(f3.release_year)
-    FROM film_actor fa3
-    JOIN film f3 ON fa3.film_id = f3.film_id
+    FROM public.film_actor fa3
+    JOIN public.film f3 ON fa3.film_id = f3.film_id
     WHERE fa3.actor_id = a1.actor_id
       AND f3.release_year > f1.release_year
 )
