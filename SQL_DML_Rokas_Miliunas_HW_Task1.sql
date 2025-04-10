@@ -12,12 +12,13 @@ INSERT INTO film (
     last_update,
     special_features
 )
-SELECT * FROM (
+SELECT *
+FROM (
     SELECT 
         'Inception' AS title,
         'A mind-bending thriller' AS description,
         2010 AS release_year,
-        1 AS language_id,
+        (SELECT language_id FROM public.language WHERE name='English') AS language_id,
         NULL::smallint AS original_language_id,
         7 AS rental_duration,
         4.99 AS rental_rate,
@@ -26,14 +27,14 @@ SELECT * FROM (
         'PG-13'::mpaa_rating AS rating,
         CURRENT_DATE AS last_update,
         ARRAY['Behind the Scenes', 'Commentaries']::text[] AS special_features
-        
+
     UNION ALL
 
     SELECT 
         'The Matrix',
         'A hacker discovers reality is a simulation',
         1999,
-        1,
+        (SELECT language_id FROM public.language WHERE name='English'),
         NULL,
         14,
         9.99,
@@ -49,7 +50,7 @@ SELECT * FROM (
         'Interstellar',
         'Journey through space and time',
         2014,
-        1,
+        (SELECT language_id FROM public.language WHERE name='English'),
         NULL,
         21,
         19.99,
@@ -58,11 +59,15 @@ SELECT * FROM (
         'PG-13'::mpaa_rating,
         CURRENT_DATE,
         ARRAY['Behind the Scenes']
-) AS new_films
+) AS f
 WHERE NOT EXISTS (
-    SELECT 1 FROM film f WHERE f.title = new_films.title
+    SELECT 1 
+    FROM film existing
+    WHERE existing.title = f.title 
+      AND existing.release_year = f.release_year
 )
 RETURNING film_id, title;
+
 
 -- Insert actors if not already in DB
 INSERT INTO actor (first_name, last_name, last_update)
@@ -107,14 +112,16 @@ WHERE f.title IN ('Inception', 'The Matrix', 'Interstellar')
 RETURNING inventory_id, film_id;
 
 -- Select an existing customer with 43+ rentals and payments
-SELECT c.customer_id, c.first_name, c.last_name, COUNT(DISTINCT r.rental_id) AS rentals, COUNT(DISTINCT p.payment_id) AS payments
-FROM customer c
-JOIN rental r ON c.customer_id = r.customer_id
-JOIN payment p ON p.customer_id = c.customer_id
-GROUP BY c.customer_id, c.first_name, c.last_name
-HAVING COUNT(DISTINCT r.rental_id) >= 43 AND COUNT(DISTINCT p.payment_id) >= 43
-LIMIT 1;
-
+WITH selected AS (
+    SELECT c.customer_id
+    FROM customer c
+    JOIN rental r ON c.customer_id = r.customer_id
+    JOIN payment p ON p.customer_id = c.customer_id
+    GROUP BY c.customer_id
+    HAVING COUNT(DISTINCT r.rental_id) >= 43 AND COUNT(DISTINCT p.payment_id) >= 43
+    ORDER BY RANDOM()
+    LIMIT 1
+)
 UPDATE customer
 SET 
     store_id = 1,
@@ -128,12 +135,8 @@ SET
     create_date = CURRENT_DATE,
     last_update = CURRENT_DATE,
     active = 1
-WHERE customer_id = (SELECT c.customer_id FROM customer c
-                        JOIN rental r ON c.customer_id = r.customer_id
-                        JOIN payment p ON p.customer_id = c.customer_id
-                        GROUP BY c.customer_id, c.first_name, c.last_name
-                        HAVING COUNT(DISTINCT r.rental_id) >= 43 AND COUNT(DISTINCT p.payment_id) >= 43
-                        LIMIT 1);
+WHERE customer_id = (SELECT customer_id FROM selected)
+RETURNING customer_id, first_name, last_name, email;
 
 
 SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas';
@@ -154,6 +157,13 @@ SELECT
 FROM inventory i
 JOIN film f ON f.film_id = i.film_id
 WHERE f.title IN ('Inception', 'The Matrix', 'Interstellar')
+AND NOT EXISTS (
+    SELECT 1 
+    FROM rental r 
+    WHERE r.rental_date = DATE '2017-04-01' 
+      AND r.inventory_id = i.inventory_id 
+      AND r.customer_id = (SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas' LIMIT 1)
+)
 RETURNING rental_id;
 
 -- Pay for those rentals
@@ -171,4 +181,10 @@ FROM rental r
 JOIN inventory i ON r.inventory_id = i.inventory_id
 JOIN film f ON i.film_id = f.film_id
 WHERE r.customer_id = (SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas' LIMIT 1)
+AND NOT EXISTS (
+    SELECT 1 
+    FROM payment p
+    WHERE p.customer_id = r.customer_id 
+      AND p.rental_id = r.rental_id
+)
 RETURNING payment_id;
