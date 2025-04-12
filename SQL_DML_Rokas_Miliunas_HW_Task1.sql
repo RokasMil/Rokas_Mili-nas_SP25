@@ -1,32 +1,23 @@
 INSERT INTO film (
-    title,
-    description,
-    release_year,
-    language_id,
-    original_language_id,
-    rental_duration,
-    rental_rate,
-    length,
-    replacement_cost,
-    rating,
-    last_update,
-    special_features
+    title, description, release_year, language_id, original_language_id,
+    rental_duration, rental_rate, length, replacement_cost, rating,
+    last_update, special_features
 )
 SELECT *
 FROM (
     SELECT 
         'Inception' AS title,
-        'A mind-bending thriller' AS description,
-        2010 AS release_year,
-        (SELECT language_id FROM public.language WHERE name='English') AS language_id,
-        NULL::smallint AS original_language_id,
-        7 AS rental_duration,
-        4.99 AS rental_rate,
-        148 AS length,
-        29.99 AS replacement_cost,
-        'PG-13'::mpaa_rating AS rating,
-        CURRENT_DATE AS last_update,
-        ARRAY['Behind the Scenes', 'Commentaries']::text[] AS special_features
+        'A mind-bending thriller',
+        2010,
+        (SELECT language_id FROM public.language WHERE name='English' LIMIT 1),
+        NULL::smallint,
+        7,
+        4.99,
+        148,
+        29.99,
+        'PG-13'::mpaa_rating,
+        CURRENT_DATE,
+        ARRAY['Behind the Scenes', 'Commentaries']::text[]
 
     UNION ALL
 
@@ -34,7 +25,7 @@ FROM (
         'The Matrix',
         'A hacker discovers reality is a simulation',
         1999,
-        (SELECT language_id FROM public.language WHERE name='English'),
+        (SELECT language_id FROM public.language WHERE name='English' LIMIT 1),
         NULL,
         14,
         9.99,
@@ -50,7 +41,7 @@ FROM (
         'Interstellar',
         'Journey through space and time',
         2014,
-        (SELECT language_id FROM public.language WHERE name='English'),
+        (SELECT language_id FROM public.language WHERE name='English' LIMIT 1),
         NULL,
         21,
         19.99,
@@ -63,8 +54,7 @@ FROM (
 WHERE NOT EXISTS (
     SELECT 1 
     FROM film existing
-    WHERE existing.title = f.title 
-      AND existing.release_year = f.release_year
+    WHERE existing.title = f.title
 )
 RETURNING film_id, title;
 
@@ -119,7 +109,7 @@ WITH selected AS (
     JOIN payment p ON p.customer_id = c.customer_id
     GROUP BY c.customer_id
     HAVING COUNT(DISTINCT r.rental_id) >= 43 AND COUNT(DISTINCT p.payment_id) >= 43
-    ORDER BY RANDOM()
+    ORDER BY c.customer_id
     LIMIT 1
 )
 UPDATE customer
@@ -129,23 +119,27 @@ SET
     last_name = 'Miliunas',
     email = 'miliunas.rokas@email.com',
     address_id = (
-        SELECT address_id FROM address ORDER BY RANDOM() LIMIT 1
+        SELECT address_id FROM address ORDER BY address_id LIMIT 1
     ),
     activebool = TRUE,
     create_date = CURRENT_DATE,
     last_update = CURRENT_DATE,
     active = 1
 WHERE customer_id = (SELECT customer_id FROM selected)
+  AND NOT EXISTS (
+      SELECT 1 FROM customer WHERE email = 'miliunas.rokas@email.com'
+  )
 RETURNING customer_id, first_name, last_name, email;
 
 
-SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas';
+
+SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas' LIMIT 1;
 -- Remove payments and rentals made by you
 DELETE FROM payment
-WHERE customer_id = (SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas');
+WHERE customer_id = (SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas' LIMIT 1);
 
 DELETE FROM rental
-WHERE customer_id =  (SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas');
+WHERE customer_id =  (SELECT customer_id FROM customer WHERE first_name = 'Rokas' AND last_name = 'Miliunas' LIMIT 1);
 
 -- Simulate rentals
 -- Insert rental records for favorite movies
